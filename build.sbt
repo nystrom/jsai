@@ -1,19 +1,13 @@
-
 name := "JSAI"
 
 version := "1.0"
 
-scalaVersion := "2.10.1"
+scalaVersion := "2.12.2"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-language:postfixOps", "-language:implicitConversions")//, "-Xdisable-assertions")
 
 // ScalaTest
-libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1" % "test"
-
-/* Fixes PatMatch memory warnings */
-initialize ~= { _ ⇒
-  sys.props("scalac.patmat.analysisBudget") = "off"
-}
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 
 // Disable parallel execution of tests
 parallelExecution in Test := false
