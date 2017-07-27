@@ -6,8 +6,8 @@ The document notjs.pdf contains the formal specification of the notJS IR, its co
 
 In order to install and run the analysis, you will need:
 
-1. [sbt version 0.12.1](http://www.scala-sbt.org/0.12.1/docs/home.html).
-2. Scala version 2.10.1. 
+1. [sbt version 0.13.15](http://www.scala-sbt.org/0.13.15/docs/home.html).
+2. Scala version 2.12.2. 
 
 ## Building
 
