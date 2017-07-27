@@ -1,5 +1,17 @@
 # JSAI: JavaScript Abstract Interpreter
 
+> NOTE:
+> This is a clone of the source code 
+> for the paper "JSAI: A Static Analysis Platform for JavaScript" (FSE'14).
+> Downloaded from the
+> [UCSB PL Lab](http://www.cs.ucsb.edu/~benh/research/downloads.html).
+>
+> I've updated the Scala and SBT versions and removed WithRewriter.jar
+> from the unmanagedJars (this prevents dependency problems in other
+> projects of mine.
+>
+> --nystrom
+
 The document notjs.pdf contains the formal specification of the notJS IR, its concrete and abstract semantics. This document references builtin.pdf. The document translation.pdf contains formalisms for translation from JavaScript to notJS and the document proof-sketches.pdf contains proof sketches for the object abstract domain.
 
 ## Installation
