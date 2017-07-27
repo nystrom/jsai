@@ -15,3 +15,5 @@ parallelExecution in Test := false
 // show durations.
 testOptions in Test ++= Seq(Tests.Argument("-oD"), Tests.Argument("-l"), Tests.Argument("Concrete"))
 
+excludeFilter in unmanagedJars := HiddenFileFilter || "WithRewriter.jar"
+
