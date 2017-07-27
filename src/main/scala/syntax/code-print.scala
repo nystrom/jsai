@@ -24,7 +24,7 @@ object CodePrint {
       expToStr(binding._1) + " = " + expToStr(binding._2)
     }
   
-    def matchBop(b: Bop): String = (if (withColors) "\033[93m" else "") + (b match {
+    def matchBop(b: Bop): String = (if (withColors) "\u001b[93m" else "") + (b match {
       case ⌜+⌝ => "⌜+⌝"
       case ⌜−⌝ => "⌜−⌝"
       case ⌜×⌝ => "⌜×⌝"
@@ -48,9 +48,9 @@ object CodePrint {
       case ⌜⋆⌝ => "⌜⋆⌝"
       case InstanceOf => "instanceof"
       case In => "in"
-    }) + (if (withColors) "\033[0m" else "")
+    }) + (if (withColors) "\u001b[0m" else "")
     
-    def matchUop(u: Uop): String = (if (withColors) "\033[93m" else "") + (u match {
+    def matchUop(u: Uop): String = (if (withColors) "\u001b[93m" else "") + (u match {
       case ⌞−⌟ => "⌞−⌟"
       case ⌞~⌟ => "⌞~⌟"
       case ⌞¬⌟ => "⌞¬⌟"
@@ -59,7 +59,7 @@ object CodePrint {
       case IsPrim => "isprim"
       case ToStr => "tostr"
       case ToNum => "tonum"
-    }) + (if (withColors) "\033[0m" else "")
+    }) + (if (withColors) "\u001b[0m" else "")
   
     def printNode(depth: Int, id: String, label: String) {
       val prefix = "  "*depth

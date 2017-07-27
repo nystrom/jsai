@@ -29,9 +29,9 @@ object TextPrint {
     }
   
     def scratchText(n: Int): String =
-      "Scratch: "+(if (withColors) "\033[93m" else "")+n.toString+(if (withColors) "\033[0m" else "")
+      "Scratch: "+(if (withColors) "\u001b[93m" else "")+n.toString+(if (withColors) "\u001b[0m" else "")
   
-    def matchBop(b: Bop): String = (if (withColors) "\033[93m" else "") + (b match {
+    def matchBop(b: Bop): String = (if (withColors) "\u001b[93m" else "") + (b match {
       case ⌜+⌝ => "add"
       case ⌜−⌝ => "sub"
       case ⌜×⌝ => "mul"
@@ -55,9 +55,9 @@ object TextPrint {
       case ⌜⋆⌝ => "acc"
       case InstanceOf => "iof"
       case In => "in"
-    }) + (if (withColors) "\033[0m" else "")
+    }) + (if (withColors) "\u001b[0m" else "")
     
-    def matchUop(u: Uop): String = (if (withColors) "\033[93m" else "") + (u match {
+    def matchUop(u: Uop): String = (if (withColors) "\u001b[93m" else "") + (u match {
       case ⌞−⌟ => "nneg"
       case ⌞~⌟ => "bneg"
       case ⌞¬⌟ => "lneg"
@@ -66,7 +66,7 @@ object TextPrint {
       case IsPrim => "isprim"
       case ToStr => "tostr"
       case ToNum => "tonum"
-    }) + (if (withColors) "\033[0m" else "")
+    }) + (if (withColors) "\u001b[0m" else "")
   
     def printNode(depth: Int, id: String, label: String) {
       val prefix = "  "*depth
@@ -209,7 +209,7 @@ object TextPrint {
         }
     
         case Lbl(lbl, s) => {
-          printNode(depth, myid, "Label: "+(if (withColors) "\033[93m" else "")+lbl+(if (withColors) "\033[0m" else ""))
+          printNode(depth, myid, "Label: "+(if (withColors) "\u001b[93m" else "")+lbl+(if (withColors) "\u001b[0m" else ""))
   
           val sid = output(depth+1)(s)
   
@@ -240,17 +240,17 @@ object TextPrint {
         }
     
         case NumAST(v: Double) => {
-          printNode(depth, myid, "Double: "+(if (withColors) "\033[94m" else "")+v.toString+(if (withColors) "\033[0m" else ""))
+          printNode(depth, myid, "Double: "+(if (withColors) "\u001b[94m" else "")+v.toString+(if (withColors) "\u001b[0m" else ""))
           myid
         }
     
         case BoolAST(v:Boolean) => {
-          printNode(depth, myid, "Boolean: "+(if (withColors) "\033[94m" else "")+v.toString+(if (withColors) "\033[0m" else ""))
+          printNode(depth, myid, "Boolean: "+(if (withColors) "\u001b[94m" else "")+v.toString+(if (withColors) "\u001b[0m" else ""))
           myid
         }
     
         case StrAST(v:String) => {
-          printNode(depth, myid, "String: "+(if (withColors) "\033[94m" else "")+v.toString+(if (withColors) "\033[0m" else ""))
+          printNode(depth, myid, "String: "+(if (withColors) "\u001b[94m" else "")+v.toString+(if (withColors) "\u001b[0m" else ""))
           myid
         }
     
@@ -265,7 +265,7 @@ object TextPrint {
         }
     
         case PVar(n) => {
-          printNode(depth, myid, "Var: "+(if (withColors) "\033[93m" else "")+getStr(n)+" ("+n.toString+")"+(if (withColors) "\033[0m" else ""))
+          printNode(depth, myid, "Var: "+(if (withColors) "\u001b[93m" else "")+getStr(n)+" ("+n.toString+")"+(if (withColors) "\u001b[0m" else ""))
           myid
         }
     

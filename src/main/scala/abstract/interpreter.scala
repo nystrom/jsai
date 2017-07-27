@@ -259,8 +259,9 @@ object notJS {
       }
 
       case e: Throwable ⇒ { // do print exception details
+        import scala.compat.Platform.EOL
         println("Exception occured: " + e.getMessage() + "\n" + 
-                e.getStackTraceString)
+                e.getStackTrace.mkString("", EOL, EOL))
         Mutable.outputMap
       }
     } 
