@@ -156,26 +156,28 @@ case class Store( a2v:Map[Address, BValue] = Map(),
     else (as map (apply(_))).reduceLeft( (acc, bv) ⇒ acc ⊔ bv )
   }
 
-  def apply( a: Address ): BValue = 
+  def apply( a: Address ): BValue = {
     a2v get a match {
       case Some(bv) ⇒ bv
       case None ⇒ throw Store.AddrNotFound
     }
+  }
   
   // retrieve an object
-  def getObj( a:Address ): Object =
+  def getObj( a:Address, shint: Str = Str.⊤ ): Object = {
     a2o get a match {
       case Some(o) ⇒ o
       case None ⇒ throw Store.AddrNotFound
     }
-  
+  }
+
   // retrieve a set of continuations
   def getKont( a:Address ): Set[KStack] =
     a2k(a)
   
   // replace a base value, using either a strong or weak update as
   // appropriate
-  def +( av:(Addresses,BValue) ): Store = {
+  def +( av:(Addresses,BValue), shint: Str = Str.⊤ ): Store = {
     assert( av._1.map( (a) ⇒ assert(a2v contains a) ).nonEmpty )
     val as = av._1
     val _a2v = 
@@ -185,12 +187,13 @@ case class Store( a2v:Map[Address, BValue] = Map(),
   }
   
   // replace an object using a strong update if possible
-  def putObj( a:Address, o:Object ): Store =
-    if ( weak(a) ) putObjWeak( a, o )
-    else putObjStrong( a, o )
+  def putObj( a:Address, o:Object, shint: Str = Str.⊤ ): Store = {
+    if ( weak(a) ) putObjWeak( a, o, shint )
+    else putObjStrong( a, o, shint )
+  }
   
   // replace an object using a strong update
-  def putObjStrong( a:Address, o:Object ): Store = {
+  def putObjStrong( a:Address, o:Object, shint: Str = Str.⊤ ): Store = {
     // we should be guaranteed that the address is strong, except if
     // we're adding a constructor internal field to an object (which
     // is sound to do strongly even if the address is weak)
@@ -199,7 +202,7 @@ case class Store( a2v:Map[Address, BValue] = Map(),
   }
   
   // replace an object using a weak update
-  def putObjWeak( a:Address, o:Object ): Store = {
+  def putObjWeak( a:Address, o:Object, shint: Str = Str.⊤): Store = {
     assert( a2o contains a )
     Store( a2v, a2o + (a → (o ⊔ a2o(a))), a2k, weak )
   }
@@ -374,7 +377,7 @@ case class Store( a2v:Map[Address, BValue] = Map(),
       // trace a2o
       while (todoO.nonEmpty) {
         val a = todoO.head ; todoO -= a ; doneO += a
-        val o = getObj(a)
+        val o = getObj(a, Str.⊥)
           
         val bvs = o.getAllValues
         

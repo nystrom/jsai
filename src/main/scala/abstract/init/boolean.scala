@@ -22,7 +22,7 @@ object InitBoolean {
         assert(argArrayAddr.defAddr, "Boolean: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1, "Boolean: Arguments array refers to multiple addresses")
 
-        val argsObj = σ.getObj(argArrayAddr.as.head)
+        val argsObj = σ.getObj(argArrayAddr.as.head, Str.α("0"))
 
         // use undefined in case of no arguments
         val input = argsObj(Str.α("0")).getOrElse(Undef.BV)

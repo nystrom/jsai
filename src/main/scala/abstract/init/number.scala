@@ -34,7 +34,7 @@ object InitNumber {
       (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
         assert(argArrayAddr.defAddr, "Number: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1, "Number: Arguments array refers to multiple addresses")
-        val argsObj = σ.getObj(argArrayAddr.as.head)
+        val argsObj = σ.getObj(argArrayAddr.as.head, Str.α("0"))
 
         // use 0 in case of no arguments
         val input = (argsObj(Str.α("0")).getOrElse(Num.inject(Num.α(0))), NumberHint)
@@ -106,7 +106,7 @@ object InitNumber {
           "Number.prototype.toString: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1,
           "Number.prototype.toString: Arguments array refers to multiple addresses")
-        val argsObj = σ.getObj(argArrayAddr.as.head)
+        val argsObj = σ.getObj(argArrayAddr.as.head, Str.α("0"))
 
         /* NB: As far as I can tell the standard is ambiguous about whether to
            except from a non-numeric self or perform conversion of the radix first;

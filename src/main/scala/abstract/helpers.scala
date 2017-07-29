@@ -100,7 +100,7 @@ object Helpers {
 
     val pas:Map[JSClass,BValue] = classes map {
       case (c, as) ⇒ c → Addresses.inject(as.foldLeft( Addresses() )(
-        (acc, a) ⇒ (σ getObj a)(prototype) match {
+        (acc, a) ⇒ (σ getObj (a, Str.⊥))(prototype) match {
           case Some(proto) ⇒
             if ( proto.defAddr ) acc ++ proto.as
             else acc ++ proto.as + Object_prototype_Addr
@@ -134,7 +134,7 @@ object Helpers {
     // addresses and only addresses, and the args address is a singleton
     assert( bv2as.defAddr && bv3.defAddr && bv3.as.size == 1 )
 
-    val isctor = (σ getObj bv3.as.head) calledAsCtor
+    val isctor = (σ getObj (bv3.as.head, Str.⊥)) calledAsCtor
 
     // for store pruning (if enabled): get the set of object roots,
     // which will be the same for all callees. note that we don't
@@ -157,7 +157,7 @@ object Helpers {
 
     val (ςs, nonfun) = bv1.as.foldLeft( (Set[State](), false) )(
       (acc, a) ⇒ {
-       (σ getObj a).getCode match {
+       (σ getObj (a, Str.⊥)).getCode match {
        case clos if clos.nonEmpty ⇒ (acc._1 ++ (clos flatMap {
        case Clo(ρc, m @ Method(self, args, s)) ⇒
               // are we doing store pruning?
@@ -173,36 +173,43 @@ object Helpers {
                     case Some(stored) ⇒ // retrieve from memo
                       stored
                   }
-                val τ1 = τ.update(ρc, σ, bv2as, bv3, s)
-                val ka = τ1.toAddr
-                val as = List(τ1.makeAddr(self), τ1.makeAddr(args))
-                val rσ1 = alloc( reach_σ, as, List(bv2as, bv3) )
-                val rσ2 = alloc( rσ1, ka, κs push RetK(x, ρ, isctor, τ))
-                val ρc1 = ρc ++ (List(self, args) zip as)
-                // if there was an exception handler in the current function
-                // update it to say that exception handler is some where up 
-                // in the call stack
-                val exc = if (κs.exc.head != 0) 1 else 0
-                Set(
+                bv2.as.map {
+                 case selfAddr ⇒
+                  val selfBV = Address.inject(selfAddr)
+                  val τ1 = τ.update(ρc, σ, selfBV, bv3, s)
+                  val ka = τ1.toAddr
+                  val as = List(τ1.makeAddr(self), τ1.makeAddr(args))
+                  val rσ1 = alloc( reach_σ, ka, κs push RetK(x, ρ, isctor, τ) )
+                  val rσ2 = alloc( rσ1, as, List(selfBV, bv3) )
+                  val ρc1 = ρc ++ (List(self, args) zip as)
+                  // if there was an exception handler in the current function
+                  // update it to say that exception handler is some where up
+                  // in the call stack
+                  val exc = if (κs.exc.head != 0) 1 else 0
                   State(s, ρc1, rσ2, Scratchpad(0), KStack(AddrK(ka,m),exc), τ1)
-                )
+                }
               }
               else { // no, only prune scratchpad
-               val τ1 = τ.update(ρc, σ, bv2as, bv3, s)
-               val ka = τ1.toAddr
-               val as = List(τ1.makeAddr(self), τ1.makeAddr(args))
-               val σ1 = alloc( σ, as, List(bv2as, bv3) )
-               val σ2 = alloc( σ1, ka, κs push RetK(x, ρ, isctor, τ))
-               val ρc1 = ρc ++ (List(self, args) zip as)
-                val exc = if (κs.exc.head != 0) 1 else 0
-                PruneScratch(τ) = ß
-                Set(
+               bv2.as.map {
+                case selfAddr ⇒
+                  val selfBV = Address.inject(selfAddr)
+                  val τ1 = τ.update(ρc, σ, selfBV, bv3, s)
+                  val ka = τ1.toAddr
+                  val as = List(τ1.makeAddr(self), τ1.makeAddr(args))
+                  val σ1 = alloc( σ, ka, κs push RetK(x, ρ, isctor, τ))
+                  val σ2 = alloc( σ1, as, List(selfBV, bv3) )
+                  val ρc1 = ρc ++ (List(self, args) zip as)
+                  val exc = if (κs.exc.head != 0) 1 else 0
+                  PruneScratch(τ) = ß
                   State(s, ρc1, σ2, Scratchpad(0), KStack(AddrK(ka,m),exc), τ1)
-                )
+               }
               }
 
             case Native(f) ⇒
-              f( bv2as, bv3, x, ρ, σ, ß, κs, τ )
+              bv2.as.flatMap {
+                selfAddr ⇒ f( Address.inject(selfAddr), bv3, x, ρ, σ, ß, κs, τ )
+              }
+              
           }), acc._2)
 
        case _ ⇒ (acc._1, true)
@@ -249,6 +256,16 @@ object Helpers {
       }
       notJS.Mutable.prunedInfo(merge_τ) = (τ, x, as)
     }
+
+    // !! STATS
+    ςs.foreach(ς ⇒ ς.t match {
+      case ValueT(`typeError`) ⇒ Stats.except(x.id, typeError)  
+      case _ ⇒ ;
+    }) 
+    
+    // !! STATS
+    if ( !bv1.defAddr || nonfun ) 
+      Stats.except(x.id, typeError) 
 
     // return the callee states plus potentially a typeError state
     ςs ++ (
@@ -402,7 +419,7 @@ object Helpers {
 
     val (defPresent, defAbsent) = bv1.as.foldLeft( (true, true) )(
       (acc, a) ⇒ {
-        val o = σ getObj a
+        val o = σ getObj(a, bv2.str)
         val dp = 
           if ( acc._1 )
             o.defField(bv2.str) && 
@@ -426,18 +443,18 @@ object Helpers {
       else if ( defPresent ) {
         if ( isStrong ) {
           val a = bv1.as.head
-          val σ1 = σ putObjStrong(a, (σ getObj a) −− bv2.str)
+          val σ1 = σ putObjStrong(a, (σ getObj (a, Str.⊥)) −− bv2.str, bv2.str)
           Some((σ1, ß(x) = Bool.TrueBV))
         }
         else {
           val σ1 = bv1.as.foldLeft( σ )(
-            (acc, a) ⇒ acc putObjWeak(a, (acc getObj a) − bv2.str) )
+            (acc, a) ⇒ acc putObjWeak(a, (acc getObj (a, Str.⊥)) − bv2.str, bv2.str) )
           Some((σ1, ß(x) = Bool.TrueBV))
         }
       }
       else {
         val σ1 = bv1.as.foldLeft( σ )(
-          (acc, a) ⇒ acc putObjWeak(a, (acc getObj a) − bv2.str) )
+          (acc, a) ⇒ acc putObjWeak(a, (acc getObj (a, Str.⊥)) − bv2.str, bv2.str) )
         Some((σ1, ß(x) = Bool.TopBV))
       }
 
@@ -462,7 +479,7 @@ object Helpers {
       val local = o(str).toSet
       val chain = 
       	if ( !o.defField(str) )
-      	  o.getProto.as.map( (a) ⇒ look(σ getObj a) )
+      	  o.getProto.as.map( (a) ⇒ look(σ getObj(a, str)) )
       	else
       	  Set()
       val fin =
@@ -474,7 +491,7 @@ object Helpers {
       (local ++ chain ++ fin).reduceLeft( (acc, bv) ⇒ acc ⊔ bv )
     }
 
-    as.foldLeft( BValue.⊥ )( (acc, a) ⇒ acc ⊔ look(σ getObj a) )
+    as.foldLeft( BValue.⊥ )( (acc, a) ⇒ acc ⊔ look(σ getObj(a, str)) )
   }
 
 
@@ -504,9 +521,9 @@ object Helpers {
   // marked as constructors.
   def setConstr( σ:Store, bv:BValue ): Store = {
     assert( bv.as.size == 1 )
-    val o = σ getObj bv.as.head
+    val o = σ getObj(bv.as.head, Str.⊥)
     val o1 = Object( o.extern, o.intern + (constructor → true), o.present )
-    σ putObjStrong( bv.as.head, o1 )
+    σ putObjStrong( bv.as.head, o1, Str.⊥ )
   }
 
   
@@ -527,21 +544,21 @@ object Helpers {
         case DNum ⇒
           val (σ2, bv2) = allocObj(Address.inject(Number_Addr), a, acc._2, τ)
           assert( bv2.as.size == 1 )
-          val o = σ2 getObj bv2.as.head
+          val o = σ2 getObj( bv2.as.head, Str.⊥ )
           val o1 = Object(o.extern, o.intern + (value → bv.onlyNum), o.present)
-          (acc._1 ⊔ bv2, σ2 putObj( bv2.as.head, o1 ))
+          (acc._1 ⊔ bv2, σ2 putObj( bv2.as.head, o1, Str.⊥ ))
 
         case DBool ⇒
           val (σ2, bv2) = allocObj(Address.inject(Boolean_Addr), a, acc._2, τ)
           assert( bv2.as.size == 1 )
-          val o = σ2 getObj bv2.as.head
+          val o = σ2 getObj( bv2.as.head, Str.⊥ )
           val o1 = Object(o.extern, o.intern + (value → bv.onlyBool), o.present)
-          (acc._1 ⊔ bv2, σ2 putObj( bv2.as.head, o1 ))
+          (acc._1 ⊔ bv2, σ2 putObj( bv2.as.head, o1, Str.⊥ ))
 
         case DStr ⇒
           val (σ2, bv2) = allocObj(Address.inject(String_Addr), a, acc._2, τ)
           assert( bv2.as.size == 1 )
-          val o = σ2 getObj bv2.as.head
+          val o = σ2 getObj( bv2.as.head, Str.⊥ )
           // set the external fields length and indices 0 to length-1
           val exactStr = Str.getExact(bv.str)
           val extern = exactStr match {
@@ -600,13 +617,13 @@ object Helpers {
     val maybeLength = length ⊑ str
     val isStrong = bv1.as.size == 1 && σ.isStrong(bv1.as.head)
     val bv3num = bv3.tonum
-    lazy val maybeArray = bv1.as exists (a ⇒ (σ getObj a).getJSClass == CArray)
+    lazy val maybeArray = bv1.as exists (a ⇒ (σ getObj (a, Str.⊥)).getJSClass == CArray)
     lazy val rhsMaybeU32 = Num.maybeU32( bv3num )
     lazy val propertyMaybeU32 = Num.maybeU32( Num.inject(str.toNum) )
 
     val noexc =
       if ( isStrong ) {
-        val o = σ getObj bv1.as.head
+        val o = σ getObj( bv1.as.head, Str.⊥ )
         val o1 =
           if ( !maybeArray ) o ++ (str → bv3)
           else if ( !maybeLength ) 
@@ -616,13 +633,13 @@ object Helpers {
           else 
             // !!TODO: we can be more precise in this else case
             (o − Str.u32) ++ (str → Num.inject(Num.U32)) 
-        val σ1 = σ putObjStrong( bv1.as.head, o1 )
+        val σ1 = σ putObjStrong( bv1.as.head, o1 , str)
         Some((bv3, σ1))
       }
       else if ( bv1.as.nonEmpty ) {
        	val σ1 = bv1.as.foldLeft( σ )(
           (acc, a) ⇒ {
-            val o = acc getObj a
+            val o = acc getObj( a, Str.⊥ )
 
             if ( o.getJSClass == CArray ) {
               val o1 = 
@@ -635,10 +652,10 @@ object Helpers {
                   o1 + (length → Num.inject(Num.U32))
                 else 
                   o1 
-              acc putObjWeak(a, o2)
+              acc putObjWeak(a, o2, str)
             }
             else 
-              acc putObjWeak(a, o + (str → bv3))
+              acc putObjWeak(a, o + (str → bv3), str)
         })
         Some((bv3, σ1))
       }

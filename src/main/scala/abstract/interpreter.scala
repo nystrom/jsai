@@ -10,7 +10,7 @@ import notjs.translator._
 import notjs.abstracted.init._
 import notjs.abstracted.traces._
 import notjs.abstracted.domains._
-import notjs.abstracted.domains.Store.AddrNotFound 
+import notjs.abstracted.domains.Store.AddrNotFound
 import notjs.abstracted.domains.AddressSpace._
 import notjs.abstracted.helpers.Errors._
 import notjs.abstracted.helpers.Helpers._
@@ -41,7 +41,7 @@ object notJS {
     var pruneStore = false  // prune the store for function calls
     var dangle = false      // leave out unimplemented init state
                             // as dangling if true, by default, all
-                            // references to them are removed   
+                            // references to them are removed
 
     // debugging command-line flags
     var testing = false     // post-fixpoint, takes an extra pass to collect
@@ -70,7 +70,7 @@ object notJS {
     // reset mutable state to initial conditions
     def clear {
       Mutable.lightGC = false
-      Mutable.fullGC = false 
+      Mutable.fullGC = false
       Mutable.pruneStore = false
       Mutable.dangle = false
       Mutable.testing = false
@@ -102,9 +102,10 @@ object notJS {
     Mutable.print      = opts("--print")
     Mutable.catchExc   = opts("--catchexc")
     Mutable.dangle     = opts("--dangle")
+    Stats.trackStats   = opts("--stats")
 
     // make sure the options are all sanitized
-    val validOptionSet = 
+    val validOptionSet =
       Set("--lightgc",
           "--fullgc",
           "--prune",
@@ -113,11 +114,12 @@ object notJS {
           "--catchexc",
           "--dangle",
           "--time",
+          "--stats",
           "--memory")
 
     def validOption(op: String): Boolean =
       op.startsWith("--trace=") || op.endsWith(".js") || validOptionSet(op)
-    
+
     val invalidOpts = opts.filterNot(validOption)
     assert(invalidOpts.isEmpty,
            "Unrecognized options: " + invalidOpts.mkString(", "))
@@ -130,13 +132,13 @@ object notJS {
     val initτ = opts.find(_.startsWith("--trace=")) match {
       case Some(str) ⇒ optionToTrace(str)
       case None ⇒ FSCI(0)
-    } 
+    }
 
     // split states for certain traces
     Mutable.splitStates = opts.find(_.startsWith("--trace=")) match {
       case Some(str) ⇒ shouldSplitStates(str)
       case None ⇒ false
-    } 
+    }
 
     // parse and translate program to get a notJS AST
     val ast = readAST( args(0) )
@@ -163,7 +165,7 @@ object notJS {
       do {
         while ( work.nonEmpty ) {
           val (_, τ) = work.dequeue
-          
+
           // eliminate duplicate entries in the worklist
           while ( work.nonEmpty && work.head._2 == τ ) work.dequeue
 
@@ -199,13 +201,13 @@ object notJS {
                 // those old values are joined back in we'll lose
                 // precision. to prevent this, we replace the current
                 // value of x in PruneStoreToo with ⊥
-                val (new_σ, new_ß) = 
+                val (new_σ, new_ß) =
                   x match {
-                    case _:PVar if pσ a2v_contains as ⇒ 
+                    case _:PVar if pσ a2v_contains as ⇒
                       ((pσ + (as → BValue.⊥)) ⊔ ς1.σ, pß ⊔ ς1.ß)
-                    case sc:Scratch ⇒ 
+                    case sc:Scratch ⇒
                       (pσ ⊔ ς1.σ, (pß(sc) = BValue.⊥) ⊔ ς1.ß)
-                    case _ ⇒ 
+                    case _ ⇒
                       (pσ ⊔ ς1.σ, pß ⊔ ς1.ß)
                   }
                 val merged = State(ς1.t, ς1.ρ, new_σ, new_ß, ς1.κs, ς1.τ)
@@ -245,26 +247,30 @@ object notJS {
       if ( Mutable.print ) {
         println( Mutable.outputMap.toList.sortWith(
           (a, b) ⇒ a._1 < b._1).map(
-            t ⇒ t._1 + ": " + t._2.mkString(", ") 
-          ).mkString("\n") 
+            t ⇒ t._1 + ": " + t._2.mkString(", ")
+          ).mkString("\n")
         )
       }
+
+      // !! STATS
+      Stats.report
+
       Mutable.outputMap
     }
     catch { // analysis generated an exception
       case _ if Mutable.catchExc ⇒ { // don't print exception details
-        if ( Mutable.print ) 
+        if ( Mutable.print )
           println("Abstract interpreter threw exception")
         Mutable.outputMap
       }
 
       case e: Throwable ⇒ { // do print exception details
         import scala.compat.Platform.EOL
-        println("Exception occured: " + e.getMessage() + "\n" + 
+        println("Exception occured: " + e.getMessage() + "\n" +
                 e.getStackTrace.mkString("", EOL, EOL))
         Mutable.outputMap
       }
-    } 
+    }
   }
 
   // compute the starting trace given the command-line option
@@ -295,7 +301,7 @@ object notJS {
   def shouldSplitStates(str: String): Boolean = {
     val ofull = """--trace=ofull-(\d+)""".r
     val cno = """--trace=cno-(\d+)-(\d+)""".r
-    // we are not including cxo here, because we are not doing 
+    // we are not including cxo here, because we are not doing
     // state splitting
     str match {
       case ofull(_, _) ⇒ true
@@ -343,7 +349,7 @@ object notJS {
       // states (i.e., we get a Merge state that goes in 'done') or
       // more than one next state then we go back to using the
       // worklist.
-        
+
       while ( ςs.size == 1 ) {
         if ( ςs.head.merge ) {
           done = done + ςs.head
@@ -351,15 +357,53 @@ object notJS {
         }
         else ςs = ςs.head.next
       }
-      
+
       ςs foreach (
         (ς) ⇒ if ( ς.merge ) done = done + ς
               else todo = ς :: todo )
     }
-    
+
     done
   }
 } // end object notJS
+
+// !! STATS: here's where we'll collect all of the stats information
+object Stats {
+
+  var trackStats = false
+
+  val exceptions = HashMap[Int, HashSet[Value]]()
+
+  // map program locations to the possible exceptions they can
+  // generate
+  def except( id:Int, v:Value ) {
+    if ( trackStats )
+      if ( exceptions contains id ) exceptions(id) += v
+      else exceptions(id) = HashSet(v)
+  }
+
+  // report the collected statistics
+  def report {
+    // count typeErrors and rangeErrors
+
+    if (!Stats.trackStats) return;
+
+    val (typeerr, rangeerr) = exceptions.foldLeft( (0,0) )(
+      (acc, idvs) ⇒ {
+        assert( idvs._2.size <= 2 )
+        if (idvs._2.size == 2) (acc._1 + 1, acc._2 + 1)
+        else idvs._2.head match {
+        case `typeError` ⇒ (acc._1 + 1, acc._2)
+        case `rangeError` ⇒ (acc._1, acc._2 + 1)
+        case _ ⇒ sys.error("unexpected exception value")
+    }})
+
+    println("NUMBER OF TYPE ERRORS: " + typeerr)
+    println("NUMBER OF RANGE ERRORS: " + rangeerr)
+  }
+}
+
+
 
 //——————————————————————————————————————————————————————————————————————————————
 // Pruning
@@ -373,7 +417,7 @@ object notJS {
 object PruneScratch {
   val pruned:HashMap[Trace,Scratchpad] = HashMap()
 
-  def clear = 
+  def clear =
     pruned.clear()
 
   def apply( τ:Trace ): Scratchpad =
@@ -398,7 +442,7 @@ object PruneStoreToo {
       case None ⇒ pruned(τ) = σß
     }
 
-  def clear = 
+  def clear =
     pruned.clear()
 
   def contains( τ:Trace ): Boolean =
@@ -415,7 +459,7 @@ object PruneStoreToo {
 // we guarantee that scratch variables cannot cross function
 // boundaries (including recursive calls).
 
-case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace ) 
+case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace )
      extends SmartHash {
 
   // lattice join. we only join at Merge statements with the same
@@ -443,21 +487,21 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
   // when we intend to use ρ and ß; there are some places where we
   // need to eval using a different environment or scratchpad, in
   // which case using this shortcut is a bug.
-  def eval( e:Exp ): BValue = 
+  def eval( e:Exp ): BValue =
     Eval.eval(e, ρ, σ, ß)
 
   // state transition rules
-  def next: Set[State] = 
-    try { 
+  def next: Set[State] = {
+    try {
       t match {
-        case StmtT( s:Stmt ) ⇒ s match {
+        case StmtT( s:Stmt ) ⇒  s match {
           // rule 1; we use the trace to make addresses instead of doing
           // it in alloc
           //
           // !! OPT: change Decl to keep xs, es separate so we don't need
           //         to unzip bind
           //
-          case Decl(bind, s) ⇒ 
+          case Decl(bind, s) ⇒
             val (xs, es) = bind.unzip;
             val as = τ makeAddrs xs
             val σ1 = alloc(σ, as, es map (eval))
@@ -469,29 +513,29 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
             State(s, ρ, σ, Scratchpad(num), κs, τ update s)
 
           // rule 2
-          case Seq(s :: ss) ⇒ 
+          case Seq(s :: ss) ⇒
             State(s, ρ, σ, ß, κs push SeqK(ss), τ update s)
 
           // rules 3,4
-          case If(e, s1, s2) ⇒ 
+          case If(e, s1, s2) ⇒
             eval(e).b match {
               case Bool.True  ⇒ State(s1, ρ, σ, ß, κs, τ update s1)
               case Bool.False ⇒ State(s2, ρ, σ, ß, κs, τ update s2)
-              case Bool.⊤     ⇒ Set( State(s1, ρ, σ, ß, κs, τ update s1), 
-                                     State(s2, ρ, σ, ß, κs, τ update s2) 
+              case Bool.⊤     ⇒ Set( State(s1, ρ, σ, ß, κs, τ update s1),
+                                     State(s2, ρ, σ, ß, κs, τ update s2)
                                    )
               case _          ⇒ Set()
             }
 
           // rules 5, modified to handle scratch variables specially
-          case Assign(x, e) ⇒  
+          case Assign(x, e) ⇒
             (x, eval(e)) match {
-              case (_, BValue.⊥) ⇒ 
+              case (_, BValue.⊥) ⇒
                 // if the expression evaluates to ⊥ then there shouldn't
                 // be a next state
                 Set()
 
-              case (x:PVar, bv) ⇒ 
+              case (x:PVar, bv) ⇒
                 advanceBV(bv, σ + (ρ(x) → bv), ß, κs)
 
               case (x:Scratch, bv) ⇒
@@ -499,7 +543,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
             }
 
           // rules 6,7
-          case While(e, s) ⇒ 
+          case While(e, s) ⇒
             eval(e).b match {
               case Bool.True  ⇒ State(s, ρ, σ, ß, κs push WhileK(e, s), τ update s)
               case Bool.False ⇒ advanceBV(Undef.BV, σ, ß, κs)
@@ -515,7 +559,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
           //         already has this function in it and all we need to do
           //         is make the address weak
           //
-          case Newfun(x, m, n) ⇒ 
+          case Newfun(x, m, n) ⇒
             val a1 = τ makeAddr x
             val ρ1 = ρ filter (m.freeVars contains _)
             val σ1 = allocFun( Clo(ρ1, m), eval(n), a1, σ )
@@ -527,7 +571,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
 
           // rule 9; we use the trace to make an address instead of doing
           // it in allocObj
-          case New(x, e1, e2) ⇒ 
+          case New(x, e1, e2) ⇒
             val a1 = τ makeAddr x
             val (bv1, bv2) = (eval(e1), eval(e2))
             val (σ1, bv) = allocObj( bv1, a1, σ, τ )
@@ -536,10 +580,13 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
               case sc:Scratch ⇒ (σ1, ß(sc) = bv)
             }
             val σ3 = setConstr( σ2, bv2 )
-            val exc = if ( !bv1.defAddr ) 
+            val exc = if ( !bv1.defAddr ) {
+                        // !! STATS
+                        Stats.except(x.id, typeError)
                         Set(State(typeError, ρ, σ, ß, κs, τ))
-                      else Set[State]()  
-            val (_σ3, _ß1) = refineExc(e1, σ3, ρ, ß1, IsFunc)                      
+                      }
+                      else Set[State]()
+            val (_σ3, _ß1) = refineExc(e1, σ3, ρ, ß1, IsFunc)
             exc ++ applyClo( bv1, bv, bv2, x, ρ, _σ3, _ß1, κs, τ )
 
           // rules 10,11; we use the trace to make an address instead of
@@ -554,13 +601,15 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
               case None ⇒ Set()
             }
             val s2 = exc match {
-              case Some(ev) ⇒ advanceEV(ev, ρ, σ, ß, κs, τ)
+              case Some(ev) ⇒
+                Stats.except(s.id, ev) // !! STATS
+                advanceEV(ev, ρ, σ, ß, κs, τ)
               case None ⇒ Set()
             }
             s1 ++ s2
 
           // rule 12,13
-          case Update(e1, e2, e3) ⇒ 
+          case Update(e1, e2, e3) ⇒
             val (noexc, exc) = updateObj( eval(e1), eval(e2), eval(e3), σ )
             val s1 = noexc match {
               case Some((bv, σ1)) ⇒ {
@@ -570,13 +619,15 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
               case None ⇒ Set()
             }
             val s2 = exc match {
-              case Some(ev) ⇒ advanceEV(ev, ρ, σ, ß, κs, τ)
+              case Some(ev) ⇒
+                Stats.except(s.id, ev) // !! STATS
+                advanceEV(ev, ρ, σ, ß, κs, τ)
               case None ⇒ Set()
             }
             s1 ++ s2
 
           // rule 14,15
-          case Del(x, e1, e2) ⇒ 
+          case Del(x, e1, e2) ⇒
             val (noexc, exc) = delete( eval(e1), eval(e2), x, ρ, σ, ß )
             val s1 = noexc match {
               case Some((σ1, ß1)) ⇒ {
@@ -586,21 +637,23 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
               case None ⇒ Set()
             }
             val s2 = exc match {
-              case Some(ev) ⇒ advanceEV(ev, ρ, σ, ß, κs, τ)
+              case Some(ev) ⇒
+                Stats.except(s.id, ev) // !! STATS
+                advanceEV(ev, ρ, σ, ß, κs, τ)
               case None ⇒ Set()
             }
             s1 ++ s2
 
           // rule 16
-          case Try(s1, x, s2, s3) ⇒ 
+          case Try(s1, x, s2, s3) ⇒
             State(s1, ρ, σ, ß, κs push TryK(x, s2, s3), τ update s1)
 
           // rule 17
-          case Throw(e) ⇒ 
+          case Throw(e) ⇒
             advanceEV(EValue(eval(e)), ρ, σ, ß, κs, τ)
 
           // rule 18
-          case Jump(lbl, e) ⇒ 
+          case Jump(lbl, e) ⇒
             advanceJV(JValue(lbl, eval(e)), σ, ß, κs)
 
           // rule 19
@@ -610,10 +663,13 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
           // rules 20
           case Call(x, e1, e2, e3) ⇒ {
             val bv1 = eval(e1)
-            val exc = if (!bv1.defAddr) 
+            val exc = if (!bv1.defAddr) {
+                        // !! STATS
+                        Stats.except(x.id, typeError)
                         Set(State(typeError, ρ, σ, ß, κs, τ))
-                      else Set[State]()  
-            val (_σ, _ß) = refineExc(e1, σ, ρ, ß, IsFunc)                      
+                      }
+                      else Set[State]()
+            val (_σ, _ß) = refineExc(e1, σ, ρ, ß, IsFunc)
             exc ++ applyClo( bv1, eval(e2), eval(e3), x, ρ, _σ, _ß, κs, τ )
           }
 
@@ -628,7 +684,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
           // !! OPT: investigate adding correlation tracking to for..in
           //         loops a la Sridharan et al
           //
-          case For(x, e, s) ⇒ 
+          case For(x, e, s) ⇒
             val keys = objAllKeys( eval(e), σ )
             if ( keys.nonEmpty ) {
               // since we're not doing anything special precision-wise to
@@ -640,14 +696,14 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
               x match {
                 case pv:PVar ⇒
                   State(s, ρ, σ + (ρ(pv) → uber), ß, κs push ForK(uber, x, s), τ update s)
-                
+
                 case sc:Scratch ⇒
                   State(s, ρ, σ, ß(sc) = uber, κs push ForK(uber, x, s), τ update s)
               }
             }
             else
               advanceBV(Undef.BV, σ, ß, κs)
-          
+
           // this is semantically a noop; we use it as a marker for where
           // to merge states together for control-flow sensitivity
           case Merge() ⇒
@@ -655,15 +711,15 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
 
           // add to output map in testing mode; otherwise a noop
           case p @ Print(e) ⇒ {
-            if ( notJS.Mutable.inPostFixpoint ) 
-              notJS.Mutable.outputMap(p.id) = 
+            if ( notJS.Mutable.inPostFixpoint )
+              notJS.Mutable.outputMap(p.id) =
                 notJS.Mutable.outputMap(p.id) + eval(e)
             advanceBV(Undef.BV, σ, ß, κs)
-          } 
+          }
 
           // we can only reach here if we get an empty Seq statement,
           // which shouldn't be possible
-          case _ ⇒ 
+          case _ ⇒
             sys.error("malformed program")
         }
 
@@ -675,12 +731,12 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
 
         case ValueT( jv:JValue ) ⇒
           advanceJV(jv, σ, ß, κs)
-      }      
+      }
     } catch {
       case AddrNotFound ⇒ Set[State]()
       case exc: Throwable ⇒ throw exc
     }
-
+  }
 
   def advanceBV( bv:BValue, σ1:Store, ß1:Scratchpad, κs1:KStack): Set[State] = {
     κs1.top match {
@@ -689,7 +745,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
         State(s, ρ, σ1, ß1, κs1 repl SeqK(ss), τ update s)
 
       // rule 24
-      case SeqK(_) ⇒
+      case SeqK(Nil) ⇒
         advanceBV( Undef.BV, σ1, ß1, κs1.pop )
 
       // rules 25,26
@@ -697,7 +753,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
         Eval.eval(e, ρ, σ1, ß1).b match {
           case Bool.True  ⇒ State(s, ρ, σ1, ß1, κs1, τ update s)
           case Bool.False ⇒ advanceBV(Undef.BV, σ1, ß1, κs1.pop)
-          case Bool.⊤     ⇒ advanceBV(Undef.BV, σ1, ß1, κs1.pop) + 
+          case Bool.⊤     ⇒ advanceBV(Undef.BV, σ1, ß1, κs1.pop) +
                             State(s, ρ, σ1, ß1, κs1, τ update s)
           case _          ⇒ Set()
         }
@@ -710,9 +766,9 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
         })
 
       // rule 29 (also look in EValue cases)
-      case AddrK(a, m) ⇒ 
+      case AddrK(a, m) ⇒
         // do lightweight GC if it is enabled
-        val σ2 = 
+        val σ2 =
           if ( notJS.Mutable.lightGC ) σ1.lightgc( m.cannotEscape )
           else σ1
 
@@ -722,7 +778,7 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
         (σ3 getKont a) flatMap (advanceBV(bv, σ3, ß1, _))
 
       // rules 30,31,32
-      case RetK(x, ρc, isctor, τc) ⇒ { 
+      case RetK(x, ρc, isctor, τc) ⇒ {
         // restore pruned information; this needs to happen after
         // lightgc but before fullgc
         val (σ2, ß2) =
@@ -747,14 +803,14 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
             σ2.fullgc( vroots, oroots, kroots )
           }
           else σ2
-         
+
         // handle return from regular calls or constructor calls that
         // return an address
         val call =
           if ( !isctor || (bv.as.size > 0) ) {
             val bv1 = if ( !isctor ) bv else Addresses.inject(bv.as)
             x match {
-              case pv:PVar ⇒ 
+              case pv:PVar ⇒
                 Set(State(bv1, ρc, σ3+(ρc(pv)→bv1), ß2, κs1.pop, τ update τc))
 
               case sc:Scratch ⇒
@@ -764,17 +820,17 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
           else Set()
 
         // handle return from constructor calls that don't return an address
-        val ctor = 
+        val ctor =
           if ( isctor && !bv.defAddr ) {
             x match {
-              case pv:PVar ⇒ 
+              case pv:PVar ⇒
                 val t1 = Eval.eval(x, ρc, σ3, ß2)
                 Set(State(t1, ρc, σ3, ß2, κs1.pop, τ update τc))
 
-              case sc:Scratch ⇒ 
+              case sc:Scratch ⇒
                 Set(State(ß2(sc), ρc, σ3, ß2, κs1.pop, τ update τc))
             }
-          } 
+          }
           else Set()
 
         call ++ ctor
@@ -831,10 +887,10 @@ case class State( t:Term, ρ:Env, σ:Store, ß:Scratchpad, κs:KStack, τ:Trace 
             val σ2 =
               if ( notJS.Mutable.lightGC ) σ1.lightgc( m.cannotEscape )
               else σ1
-        
+
             // conservatively make all potentially escaping addresses weak
             val σ3 = σ2.weaken( m.canEscapeVar, m.canEscapeObj )
-            
+
             (σ3 getKont a) flatMap ( κs2 ⇒ {
               val RetK(_, ρc, _, τc) = κs2.top
 

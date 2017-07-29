@@ -46,7 +46,7 @@ object InitString {
            or even the behavior of Native, if possible. */
         assert(argArrayAddr.defAddr, "String: argument array must be an address set")
         assert(argArrayAddr.as.size == 1, "String: argument array address set size must be 1")
-        val argsArray = σ.getObj(argArrayAddr.as.head)
+        val argsArray = σ.getObj(argArrayAddr.as.head, Str.α("0"))
 
         // NB: use empty string if argument not given
         val arg_preconv = (argsArray(Str.α("0")) getOrElse Str.inject(Str.α("")), StringHint)

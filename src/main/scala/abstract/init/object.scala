@@ -19,7 +19,7 @@ object InitObject {
     Native(
       (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
         assert(argArrayAddr.defAddr && argArrayAddr.as.size == 1, "Arguments array refers to non-addresses or multiple addresses")
-        val argsObj = σ.getObj(argArrayAddr.as.head)
+        val argsObj = σ.getObj(argArrayAddr.as.head, Str.α("0"))
         // Note: Reading the sec, the constructor doesn't differ from the standard invocation except in the handling of 'host objects'.
         val input = argsObj(Str.α("0")).getOrElse(Undef.BV)
 

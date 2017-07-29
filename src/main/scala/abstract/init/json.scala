@@ -37,7 +37,7 @@ object InitJSON {
 
       val res_bv = unkObj_addr_bv ⊔ Str.inject(STop) ⊔ Num.inject(NTop) ⊔ Bool.inject(BTop) ⊔ Null.BV
 
-      val oldObj = σ1 getObj unkObj_addr
+      val oldObj = σ1 getObj (unkObj_addr, Str.⊥)
       val unkObj = oldObj copy (
         extern = oldObj.extern copy (top = Some(res_bv))
       )
@@ -52,7 +52,7 @@ object InitJSON {
       (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
         assert(argArrayAddr.defAddr, "JSON.parse: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1, "JSON.parse: Arguments array refers to multiple addresses")
-        val argsArray = σ.getObj(argArrayAddr.as.head)
+        val argsArray = σ.getObj(argArrayAddr.as.head, Str.α("0"))
 
         val text = argsArray(Str.α("0")) getOrElse Undef.BV
 

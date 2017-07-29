@@ -25,7 +25,7 @@ object InitArguments {
 
   val Arguments_Obj = createInitFunctionObj(Native(
     (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
-      lazy val argsObj = σ.getObj(argArrayAddr.as.head)
+      lazy val argsObj = σ.getObj(argArrayAddr.as.head, Str.⊥)
       lazy val calledAsConstr = argsObj.intern.getOrElse(
         Fields.constructor, false).asInstanceOf[Boolean]
       assert(calledAsConstr, "Arguments should never be called as a function")

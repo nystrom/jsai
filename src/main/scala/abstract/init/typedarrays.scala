@@ -20,10 +20,11 @@ object InitTypedArrays {
         // TODO: if not called as a constructor, throw a TypeError
         assert(selfAddr.defAddr && selfAddr.as.size == 1, "We don't currently support mixing of ArrayBuffers with other objects")
         assert(argArrayAddr.defAddr && argArrayAddr.as.size == 1, "Arguments array refers to non-addresses or multiple addresses")
-        val argsObj = σ.getObj(argArrayAddr.as.head)
+        val argsObj = σ.getObj(argArrayAddr.as.head, Str.α("0"))
+
         val input = argsObj(Str.α("0")).getOrElse(Num.inject(Num.Zero))
         // we should not throw an exception because selfAddr.defAddr
-        val oldObj = (σ getObj selfAddr.as.head)
+        val oldObj = σ getObj (selfAddr.as.head, Str.⊥)
         // we join Num.Zero with Undef, because we don't know if the access will be within limits
         val updatedObj = newArrayBuffer(input, oldObj)
         makeState(selfAddr, x, ρ, σ.putObj(selfAddr.as.head, updatedObj), ß, κ, τ)
@@ -37,7 +38,7 @@ object InitTypedArrays {
         (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
           assert(selfAddr.defAddr && selfAddr.as.size == 1, 
             "We don't currently support mixing of %s with other objects".format(name))
-          val oldObj = (σ getObj selfAddr.as.head)
+          val oldObj = σ getObj(selfAddr.as.head, Str.⊥)
           val updatedObj = newArray(NReal, List(), Some(Num.inject(NReal)), oldObj, true)
           makeState(selfAddr, x, ρ, σ.putObj(selfAddr.as.head, updatedObj), ß, κ, τ)
         }
@@ -106,7 +107,7 @@ object InitTypedArrays {
     (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
       assert(selfAddr.defAddr && selfAddr.as.size == 1, "We don't currently support mixing of Int8Array with other objects")
       val (σ1, subarrBV) = allocObj(Address.inject(Object_Addr), τ.toAddr, σ, τ)
-      val oldObj = (σ1 getObj subarrBV.as.head)
+      val oldObj = σ1 getObj (subarrBV.as.head, Str.⊥)
       val updatedObj = newArray(NReal, List(), Some(Num.inject(NReal)), oldObj, true)
       makeState(subarrBV, x, ρ, σ1.putObj(subarrBV.as.head, updatedObj), ß, κ, τ)
     }

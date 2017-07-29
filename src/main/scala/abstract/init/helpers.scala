@@ -67,7 +67,7 @@ object InitHelpers {
          by the other method as well and join the results. */
       lazy val valueOf = lookup(Set(a), Str.α("valueOf"), σ)
       lazy val toString = lookup(Set(a), Str.α("toString"), σ)
-      val o = σ getObj a
+      val o = σ getObj (a, Str.⊥)
 
       // TODO: ensure these coincide with their respective function objects,
       // perhaps by factoring the commonality out.
@@ -77,7 +77,7 @@ object InitHelpers {
         case `Boolean_prototype_valueOf_Addr` ⇒ o.getValue
         case `Date_prototype_valueOf_Addr` ⇒ Num.inject(NReal)
         case `Object_prototype_valueOf_Addr` ⇒ Address.inject(a)
-        case addr if (σ getObj addr).getCode.nonEmpty ⇒ BValue.⊥ // TODO: print a warning
+        case addr if (σ getObj (addr, Str.⊥)).getCode.nonEmpty ⇒ BValue.⊥ // TODO: print a warning
         case _ ⇒ BValue.⊥
       } }
 
@@ -96,7 +96,7 @@ object InitHelpers {
         }
         case `Date_prototype_toString_Addr` ⇒ Str.inject(SNotNum).tostr
         case `Function_prototype_toString_Addr` ⇒ Str.inject(SNotNum).tostr
-        case addr if (σ getObj addr).getCode.nonEmpty ⇒ BValue.⊥ // TODO: print a warning
+        case addr if (σ getObj (addr, Str.⊥)).getCode.nonEmpty ⇒ BValue.⊥ // TODO: print a warning
         case _ ⇒ BValue.⊥
       } }
 
@@ -238,7 +238,7 @@ object InitHelpers {
         (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ: Trace) ⇒ {
           assert(argArrayAddr.defAddr, "Internal function object: argument array address must be an address")
           assert(argArrayAddr.as.size == 1, "Internal function object: argument array address set size must be 1")
-          val argsArray = σ.getObj(argArrayAddr.as.head)
+          val argsArray = σ.getObj(argArrayAddr.as.head, Str.⊥)
           // true iff invoking as a constructor:
           val construct = argsArray.intern.getOrElse(Fields.constructor, false).asInstanceOf[Boolean]
           if (construct)
@@ -317,7 +317,7 @@ object InitHelpers {
       val final_value = bvtrans(arg_value)
 
       /* in constructors, an object has been allocated at selfAddr for us to populate */
-      val old_self = σ getObj selfAddr
+      val old_self = σ getObj (selfAddr, Str.⊥)
       val new_self = old_self copy (intern = old_self.intern + (Fields.value → final_value))
       
       // special case when we have a string constructor
@@ -353,7 +353,7 @@ object InitHelpers {
 
     assert(selfAddr.defAddr, "Assuming selfAddr is always addresses")
 
-    val selves: Set[Object] = selfAddr.as map σ.getObj
+    val selves: Set[Object] = selfAddr.as.map(σ.getObj(_, Str.⊥))
     val (goods, bads) = selves partition { self ⇒ goodClass(self.myClass) }
 
     val goodv = goods.foldLeft[A](bottom) {

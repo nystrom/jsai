@@ -305,8 +305,8 @@ case class SigCFA(k:Int, h:Int, pp:Int, tr:Sequence[Int]) extends SameTrace[SigC
   // corresponding domain in the argument is not ⊥.
   def updateSame( ρ:Env, σ:Store, self:BValue, args:BValue, s:Stmt ) = {
     assert( args.as.size == 1 && 
-           (σ getObj args.as.head).getJSClass == CArguments )
-    val argo = σ getObj args.as.head
+           (σ getObj (args.as.head, Str.⊥)).getJSClass == CArguments )
+    val argo = σ getObj( args.as.head, Str.⊥ )
     val numargs = argo(length) match {
       case Some(bv) ⇒ bv.n match {
 	case NConst(d) ⇒ if (d.toInt > 4) 4 else d.toInt

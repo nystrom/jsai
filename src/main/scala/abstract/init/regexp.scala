@@ -40,7 +40,7 @@ object InitRegExp {
   def mutateLastIndex(addrs: Addresses, σ: Store): Store =
     addrs.foldLeft[Store](σ) {
       case (σ_acc, a) ⇒ σ_acc ⊔
-        σ.putObj(a, σ.getObj(a) + (Str.α("lastIndex") → Num.inject(NReal)))
+        σ.putObj(a, σ.getObj(a, Str.⊥) + (Str.α("lastIndex") → Num.inject(NReal)), Str.α("lastIndex"))
     }
 
   // also used in some String.prototype methods
@@ -59,7 +59,7 @@ object InitRegExp {
       assert(re_addr_bv.as.size == 1,
         "RegExp: address set of fresh RegExp object should be of size 1")
       val re_addr = re_addr_bv.as.head
-      val old_obj = σ getObj re_addr
+      val old_obj = σ getObj( re_addr, Str.⊥ )
       val re_obj = old_obj copy (
         intern = old_obj.intern ++ Map[Str, Any](
           Str.α("source") → Str.inject(STop),

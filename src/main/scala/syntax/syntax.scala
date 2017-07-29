@@ -372,3 +372,28 @@ object Topo {
   }
 
 }
+
+object Stmt2Func {
+
+  def apply( s:Stmt, mid: Int ): Map[Int, Int] = {
+    
+
+    def r( node:AST, mid: Int ): Map[Int, Int] =
+      Map(node.id → mid) ++ (
+      node match {
+        case Decl(_, s) ⇒ r(s, mid)
+        case SDecl(_, s) ⇒ r(s, mid)
+        case Seq(ss) ⇒ ss.foldLeft(Map[Int, Int]())((acc, s) ⇒ acc ++ r(s, mid))
+        case If(_, s1, s2) ⇒ r(s1, mid) ++ r(s2, mid)
+        case While(_, s) ⇒ r(s, mid)
+        case Try(s1, _, s2, s3) ⇒ r(s1, mid) ++ r(s2, mid) ++ r(s3, mid)
+        case Lbl(_, s) ⇒ r(s, mid)
+        case For(_, _, s) ⇒ r(s, mid)
+        case Newfun(_, m@Method(_, _, s), _) ⇒ r(s, m.id)
+        case _ ⇒ Map()
+      })
+
+    r(s, mid)
+  }
+
+}

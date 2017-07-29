@@ -71,7 +71,7 @@ object Eval {
                 bv2.as.foldLeft[Bool]( Bool.⊥ )(
                   (acc, a) ⇒ 
                     if ( acc == Bool.⊤ ) Bool.⊤
-                    else acc ⊔ find( σ getObj a, bv1.str ) 
+                    else acc ⊔ find( σ getObj(a, bv1.str), bv1.str ) 
                 ))
 	       }
 
@@ -96,7 +96,7 @@ object Eval {
         Bool.⊥ 
       else {
         val bv = as1Unseen.foldLeft( BValue.⊥ )( 
-          (acc, a) ⇒ acc ⊔ (σ getObj a).getProto )
+          (acc, a) ⇒ acc ⊔ (σ getObj(a, Str.⊥)).getProto )
         val protos = bv.as
         val isnull = (bv.nil == Null.⊤)
 
@@ -141,7 +141,7 @@ object Eval {
           val proto = bv.as.foldLeft[Bool]( Bool.⊥ )( 
             (acc, a) ⇒
               if ( acc == Bool.⊤ ) Bool.⊤
-              else acc ⊔ find(σ getObj a, str) )
+              else acc ⊔ find(σ getObj(a, str), str) )
 
           if ( maybeField && bv.nil == Null.⊥ )
             Bool.True ⊔ proto
@@ -163,12 +163,12 @@ object Eval {
           case DUndef ⇒ acc ⊔ Str.α("undefined")
           case _ ⇒
             val otype = 
-              if (bv.as.exists ( (a) ⇒ (σ getObj a).getCode.isEmpty ))
+              if (bv.as.exists ( (a) ⇒ (σ getObj (a, Str.⊥)).getCode.isEmpty ))
         	Str.α("object") 
               else Str.⊥ 
 
             val ftype = 
-              if (bv.as.exists ( (a) ⇒ (σ getObj a).getCode.nonEmpty ))
+              if (bv.as.exists ( (a) ⇒ (σ getObj (a, Str.⊥)).getCode.nonEmpty ))
         	Str.α("function") 
               else Str.⊥ 
 

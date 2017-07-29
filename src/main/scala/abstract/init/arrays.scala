@@ -21,7 +21,7 @@ object InitArrays {
       assert(argArrayAddr.defAddr, "Arguments array refers to non-addresses")
       assert(argArrayAddr.as.size == 1, "Arguments array refers to multiple addresses")
 
-      val argsObj = σ.getObj(argArrayAddr.as.head)
+      val argsObj = σ.getObj(argArrayAddr.as.head, Str.⊥)
       val argLength = argsObj(Fields.length).getOrElse(BValue.⊥).n
       assert(argLength != Num.⊥, "When constructing an array, arguments length should be provided")
 
@@ -33,7 +33,7 @@ object InitArrays {
       val (σ1, arrayAddrs) = if (calledAsConstr) {
         // we should have already got an array allocated, the rest will be taken care of
         // by their respective constructor functions
-        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a).getJSClass == CArray)
+        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray)
         (σ, arrayAddrs)
       } else {
         // called as a function: first, construct the array object
@@ -42,7 +42,7 @@ object InitArrays {
       }
       assert(arrayAddrs.size == 1, "We should have allocated one and only one address for arrays")
       val arrayAddr = arrayAddrs.head
-      val oldArrayObj = σ1 getObj arrayAddr
+      val oldArrayObj = σ1 getObj( arrayAddr, Str.⊥ )
 
       val (argLenMaybe1, argLenMaybeNot1) = argLength match {
         case NConst(d) if (d.toInt == 1) ⇒ (true, false)
@@ -136,7 +136,7 @@ object InitArrays {
       assert(argArrayAddr.defAddr, "Arguments array refers to non-addresses")
       assert(argArrayAddr.as.size == 1, "Arguments array refers to multiple addresses")
       val lenVal = lookup(selfAddr.as, Fields.length, σ)
-      val argsObj = σ getObj argArrayAddr.as.head
+      val argsObj = σ getObj( argArrayAddr.as.head, Str.α("0") )
       val separator = argsObj(Str.α("0")) getOrElse Str.inject(Str.α(","))
       if (lenVal == Num.inject(Num.α(0)))
         makeState(Str.inject(Str.α("")), x, ρ, σ, ß, κ, τ)
@@ -159,13 +159,13 @@ object InitArrays {
       val zeroς = if (lenVal.n.defNot0) Set() else makeState(Undef.BV, x, ρ, σ, ß, κ, τ)
 
       // we choose to throw a type error if called on a non-array
-      val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a).getJSClass == CArray)
+      val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray)
       
       if (arrayAddrs.size != selfAddr.as.size)
           makeState(typeError, x, ρ, σ, ß, κ, τ)
       else {
         val arrayAddr = arrayAddrs.head
-        val oldArrayObj = σ getObj arrayAddr
+        val oldArrayObj = σ getObj( arrayAddr, Str.⊥ )
         // TODO: precision if length known?
         val summaryVal = lookup(arrayAddrs, SNum, σ)
         val updatedArrObj = newArray(NReal, List(), Some(summaryVal), oldArrayObj, true)
@@ -192,7 +192,7 @@ object InitArrays {
          into a helper */
       /* TODO: additionally, check if we care about anything which has
          non-TypeError behavior, and if so, account for that. */
-      val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a).getJSClass == CArray)
+      val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray)
       val errς =
         if (arrayAddrs.size != selfAddr.as.size)
           makeState(typeError, x, ρ, σ, ß, κ, τ)
@@ -202,7 +202,7 @@ object InitArrays {
       val isStrong = arrayAddrs.size == 1 && σ.isStrong(arrayAddrs.head)    
       val σ1 = arrayAddrs.foldLeft(σ) {
         case (acc, arrayAddr) ⇒ {
-          val oldArrayObj = acc getObj arrayAddr
+          val oldArrayObj = acc getObj( arrayAddr, Str.⊥ )
           // TODO: precision if length known?
           val summaryVal = lookup(Addresses(arrayAddr), SNum, acc) ⊔ lookup(argArrayAddr.as, SNum, acc)
           val updatedArrObj = newArray(NReal, List(), Some(summaryVal), oldArrayObj, true)
@@ -233,13 +233,13 @@ object InitArrays {
           "Array.prototype.concat: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1,
           "Array.prototype.concat: Arguments array refers to multiple addresses")
-        val argsArray = σ getObj argArrayAddr.as.head
+        val argsArray = σ getObj( argArrayAddr.as.head, SNum )
 
         val argsSummary = selfAddr ⊔ argsArray(SNum).getOrElse(BValue.⊥)
         /* compute summary of new entries by joining all entries of array arguments
            with all non-array arguments */
         val (arrayAddrs, nonArrayAddrs) = argsSummary.as partition {
-          a ⇒ σ.getObj(a).getJSClass == CArray
+          a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray
         }
         val entrySummary = argsSummary.copy(as = nonArrayAddrs) ⊔ lookup(arrayAddrs, SNum, σ)
 
@@ -248,7 +248,7 @@ object InitArrays {
         assert(resaddr_bv.as.size == 1,
           "Array.prototype.concat: freshly allocated address set should be singleton")
         val resaddr = resaddr_bv.as.head
-        val oldArrayObj = σ1 getObj resaddr
+        val oldArrayObj = σ1 getObj( resaddr, Str.⊥ )
 
         val resArray = newArray(NReal, List(), Some(entrySummary), oldArrayObj, true)
 
@@ -266,14 +266,14 @@ object InitArrays {
            into a helper */
         /* TODO: additionally, check if we care about anything which has
            non-TypeError behavior, and if so, account for that. */
-        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a).getJSClass == CArray)
+        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray)
   
         if (arrayAddrs.size != selfAddr.as.size)
             makeState(typeError, x, ρ, σ, ß, κ, τ)
         else {
           val arrayAddr = arrayAddrs.head
 
-          val selfArray = σ getObj arrayAddr
+          val selfArray = σ getObj( arrayAddr, SNum )
           val entrySummary = selfArray(SNum) getOrElse Undef.BV
 
           /* allocate new array to house summary */
@@ -281,7 +281,7 @@ object InitArrays {
           assert(resaddr_bv.as.size == 1,
             "Array.prototype.sort: freshly allocated address set should be singleton")
           val resaddr = resaddr_bv.as.head
-          val freshObj = σ1 getObj resaddr
+          val freshObj = σ1 getObj( resaddr, Str.⊥ )
 
           val resArray = newArray(NReal, List(), Some(entrySummary), freshObj, true)
 
@@ -303,21 +303,21 @@ object InitArrays {
           "Array.prototype.concat: Arguments array refers to non-addresses")
         assert(argArrayAddr.as.size == 1,
           "Array.prototype.concat: Arguments array refers to multiple addresses")
-        val argArray = σ getObj argArrayAddr.as.head
+        val argArray = σ getObj( argArrayAddr.as.head, Str.⊥ )
 
         // we choose to throw a type error if called on a non-array
         /* TODO: if this sort of thing is a common pattern, factor it out
            into a helper */
         /* TODO: additionally, check if we care about anything which has
            non-TypeError behavior, and if so, account for that. */
-        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a).getJSClass == CArray)
+        val arrayAddrs = selfAddr.as.filter(a ⇒ σ.getObj(a, Str.⊥).getJSClass == CArray)
         
         if (arrayAddrs.size != selfAddr.as.size)
             makeState(typeError, x, ρ, σ, ß, κ, τ)
         else {    
           val selfArrayAddr = arrayAddrs.head
 
-          val oldSelf = σ getObj selfArrayAddr
+          val oldSelf = σ getObj( selfArrayAddr, SNum )
           val oldSummary = oldSelf(SNum) getOrElse Undef.BV
           val newSummary = oldSummary ⊔ argArray(SNum).getOrElse(BValue.⊥)
 
@@ -330,7 +330,7 @@ object InitArrays {
           assert(retAddr_bv.as.size == 1,
             "Array.prototype.concat: freshly allocated address set should be singleton")
           val retAddr = retAddr_bv.as.head
-          val freshObj = σ2 getObj retAddr
+          val freshObj = σ2 getObj( retAddr, Str.⊥ )
           /* populate return array with summary of original array */
           val retArray = newArray(NReal, List(), Some(oldSummary), freshObj, true)
           val σ3 = σ2.putObj(retAddr, retArray)
@@ -355,11 +355,11 @@ object InitArrays {
   val Array_prototype_reverse_Obj = createInitFunctionObj(Native(
     (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
       // we choose to throw a type error if called on a non-array
-      val arrayAddrs = selfAddr.as.collect({case a if σ.getObj(a).getJSClass == CArray ⇒ a})
+      val arrayAddrs = selfAddr.as.collect({case a if σ.getObj(a, Str.⊥).getJSClass == CArray ⇒ a})
       if (arrayAddrs.size != selfAddr.as.size) makeState(typeError, x, ρ, σ, ß, κ, τ)
       else {
         val arrayAddr = arrayAddrs.head
-        val oldArrayObj = σ getObj arrayAddr
+        val oldArrayObj = σ getObj( arrayAddr, SNum )
         val summaryVal = lookup(arrayAddrs, SNum, σ)
         val updatedArrObj = oldArrayObj copy (
           extern = oldArrayObj.extern.copy(
@@ -376,11 +376,11 @@ object InitArrays {
   val Array_prototype_shift_Obj = createInitFunctionObj(Native(
     (selfAddr: BValue, argArrayAddr: BValue, x: Var, ρ: Env, σ: Store, ß:Scratchpad, κ: KStack, τ:Trace) ⇒ {
         // we choose to throw a type error if called on a non-array
-      val arrayAddrs = selfAddr.as.collect({case a if σ.getObj(a).getJSClass == CArray ⇒ a})
+      val arrayAddrs = selfAddr.as.collect({case a if σ.getObj(a, Str.⊥).getJSClass == CArray ⇒ a})
       if (arrayAddrs.size != selfAddr.as.size) makeState(typeError, x, ρ, σ, ß, κ, τ)
       else {
         val arrayAddr = arrayAddrs.head
-        val oldArrayObj = σ getObj arrayAddr
+        val oldArrayObj = σ getObj( arrayAddr, Str.⊥ )
         val summaryVal = lookup(arrayAddrs, SNum, σ)
 
         val updatedArrObj = newArray(NReal, List(), Some(summaryVal), oldArrayObj, true)  
@@ -403,7 +403,7 @@ object InitArrays {
       // 3. If IsCallable(func) is false, then let func be the standard built-in method Object.prototype.toString (15.2.4.2).
       // 4. Return the result of calling the [[Call]] internal method of func providing array as the this value and an empty arguments list.
       val func = lookup(selfAddr.as, Str.α("join"), σ)
-      val callableAddrs = func.as.filter(a ⇒ σ.getObj(a).getCode.nonEmpty) - Array_prototype_toString_Addr
+      val callableAddrs = func.as.filter(a ⇒ σ.getObj(a, Str.⊥).getCode.nonEmpty) - Array_prototype_toString_Addr
       
       applyClo(Addresses.inject(callableAddrs), selfAddr, Address.inject(Dummy_Arguments_Addr), x, ρ, σ, ß, κ, τ) ++
       (if (!func.defAddr || (callableAddrs.size != func.as.size)) // possible non-function "join"s
